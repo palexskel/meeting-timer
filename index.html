@@ -262,6 +262,12 @@
       text-shadow: 0 0 20px rgba(239, 68, 68, 0.6);
     }
 
+    .current-time {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
     .timer-note {
       font-size: 0.72rem;
       color: var(--text-muted);
@@ -567,6 +573,7 @@
         </div>
         <div class="timer-main-label" id="meetingTimerLabel">Meeting time left</div>
         <div class="meeting-timer-value" id="meetingTimer">00:00:00</div>
+        <div class="current-time" id="currentTimeDisplay">Now: --:--:--</div>
         <div class="progress-track">
           <div class="progress-bar" id="meetingProgressBar"></div>
         </div>
@@ -655,6 +662,7 @@
       const meetingTimerLabel = document.getElementById("meetingTimerLabel");
       const meetingTimerEl = document.getElementById("meetingTimer");
       const meetingProgressBar = document.getElementById("meetingProgressBar");
+      const currentTimeDisplay = document.getElementById("currentTimeDisplay");
       const topicsListEl = document.getElementById("topicsList");
 
       let topics = [];
@@ -710,6 +718,13 @@
         return (negative ? "-" : "") + str;
       }
 
+      function formatTimeOfDay(d) {
+        const h = String(d.getHours()).padStart(2, "0");
+        const m = String(d.getMinutes()).padStart(2, "0");
+        const s = String(d.getSeconds()).padStart(2, "0");
+        return `${h}:${m}:${s}`;
+      }
+
       function ensureAudioContext() {
         try {
           const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -743,7 +758,7 @@
 
         // Bell-ish partials
         osc1.frequency.value = 880;  // A5
-        osc2.frequency.value = 1320; // a higher partial
+        osc2.frequency.value = 1320; // higher partial
 
         osc1.connect(gain);
         osc2.connect(gain);
@@ -951,9 +966,14 @@
       // --- timers update loop -------------------------------------------------
 
       function updateTimers() {
-        if (!meetingRunning || !meetingStart || !meetingEnd) return;
-
         const now = new Date();
+
+        // Update current time display
+        if (currentTimeDisplay) {
+          currentTimeDisplay.textContent = "Now: " + formatTimeOfDay(now);
+        }
+
+        if (!meetingRunning || !meetingStart || !meetingEnd) return;
 
         // Meeting timer
         const totalMs = meetingEnd - meetingStart;
@@ -980,7 +1000,7 @@
         }
 
         // Topics
-        topics.forEach((topic, index) => {
+        topics.forEach((topic) => {
           if (!topic.timerEl) return;
 
           const bar = topic.progressBarEl;
@@ -996,9 +1016,10 @@
           }
 
           if (topic.status === "finished") {
-            // For finished topics, keep whatever timer is displayed and show full bar (or capped)
+            // For finished topics, keep displayed time and show capped bar
             if (bar && topic.plannedMs > 0 && topic.startTime) {
-              const elapsedMs = (topic.endTime || topic.startTime) - topic.startTime;
+              const endRef = topic.endTime || topic.startTime;
+              const elapsedMs = endRef - topic.startTime;
               const fraction = Math.min(1, elapsedMs / topic.plannedMs);
               bar.style.transform = "scaleX(" + Math.max(0, fraction) + ")";
               bar.classList.toggle("overrun", elapsedMs > topic.plannedMs);
@@ -1077,6 +1098,7 @@
           return;
         }
 
+        // Planned window
         meetingStart = startDate;
         meetingEnd = endDate;
 
@@ -1103,7 +1125,6 @@
           const name = nameInput ? nameInput.value.trim() : "";
           const minutes = Number(minutesInput.value);
           if (!minutes || minutes <= 0) {
-            // We'll validate after loop; but keep track
             newTopics.push({ invalid: true });
             return;
           }
@@ -1157,9 +1178,14 @@
 
         // Start timers
         meetingRunning = true;
-        currentTopicId = topics[0].id;
+
+        // The meeting timer already compares planned start & end to the ACTUAL current time.
+        // If the meeting is already ongoing (current time > start time), the remaining time
+        // will automatically be less than the planned duration.
+
         if (topics.length) {
           const first = topics[0];
+          currentTopicId = first.id;
           first.status = "running";
           first.startTime = new Date();
           if (first.buttonEl) first.buttonEl.disabled = false;
@@ -1203,18 +1229,41 @@
           meetingProgressBar.classList.remove("overrun");
         }
 
+        if (currentTimeDisplay) {
+          currentTimeDisplay.textContent = "Now: --:--:--";
+        }
+
         startMeetingBtn.disabled = false;
         startMeetingBtn.textContent = "Start the meeting";
         renderTopicsList();
       }
 
       function handleEndTopicClick(topicId) {
-        const topic = topics.find((t) => String(t.id) === String(topicId));
-        if (!topic) return;
+        const idx = topics.findIndex((t) => String(t.id) === String(topicId));
+        if (idx === -1) return;
+        const topic = topics[idx];
         if (topic.status !== "running") return;
+
+        // Mark this topic finished
         topic.status = "finished";
         topic.endTime = new Date();
         if (topic.buttonEl) topic.buttonEl.disabled = true;
+
+        // Immediately start the next not-started topic, if any
+        const now = new Date();
+        for (let i = idx + 1; i < topics.length; i++) {
+          const next = topics[i];
+          if (next.status === "not-started") {
+            next.status = "running";
+            next.startTime = now;
+            next.overrunNotified = false;
+            next.triggeredNext = false;
+            if (next.buttonEl) next.buttonEl.disabled = false;
+            currentTopicId = next.id;
+            break;
+          }
+        }
+
         updateTopicRowClasses();
       }
 
@@ -1319,6 +1368,10 @@
         const endM = end.getMinutes();
         startTimeInput.value = pad(startH) + ":" + pad(startM);
         endTimeInput.value = pad(endH) + ":" + pad(endM);
+
+        if (currentTimeDisplay) {
+          currentTimeDisplay.textContent = "Now: " + formatTimeOfDay(now);
+        }
 
         buildTopicConfigFields();
         renderTopicsList();
