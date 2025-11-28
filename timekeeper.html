@@ -1,0 +1,1335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Meeting Agenda Timekeeper</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --bg: #0f172a;
+      --bg-card: #111827;
+      --accent: #22c55e;
+      --accent-soft: rgba(34, 197, 94, 0.25);
+      --danger: #ef4444;
+      --danger-soft: rgba(239, 68, 68, 0.2);
+      --text-main: #e5e7eb;
+      --text-muted: #9ca3af;
+      --border-subtle: #1f2937;
+      --shadow-soft: 0 18px 45px rgba(0, 0, 0, 0.45);
+      --radius-lg: 18px;
+      --radius-pill: 999px;
+    }
+
+    * {
+      box-sizing: border-box;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+        "Segoe UI", sans-serif;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: stretch;
+      justify-content: center;
+      padding: 24px;
+      background: radial-gradient(circle at top, #1f2937, #020617 55%);
+      color: var(--text-main);
+    }
+
+    .app-shell {
+      width: 100%;
+      max-width: 1080px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.4fr);
+      gap: 24px;
+    }
+
+    @media (max-width: 900px) {
+      .app-shell {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
+    .card {
+      background: radial-gradient(circle at top left, #1f2937, #020617 70%);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-subtle);
+      box-shadow: var(--shadow-soft);
+      padding: 18px 20px 20px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 0% 0%, rgba(56, 189, 248, 0.08), transparent 55%);
+      opacity: 0.7;
+      pointer-events: none;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .card-title {
+      font-size: 1rem;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: #f9fafb;
+    }
+
+    .card-subtitle {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    .badge {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      border-radius: var(--radius-pill);
+      padding: 4px 10px;
+      border: 1px solid rgba(148, 163, 184, 0.5);
+      color: var(--text-muted);
+      backdrop-filter: blur(12px);
+      background: radial-gradient(circle at top, rgba(148, 163, 184, 0.08), transparent);
+    }
+
+    label {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    input, button, select {
+      font-size: 0.9rem;
+    }
+
+    .field-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 10px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .field {
+      flex: 1;
+    }
+
+    input[type="time"],
+    input[type="number"],
+    input[type="text"] {
+      width: 100%;
+      padding: 7px 10px;
+      border-radius: 10px;
+      border: 1px solid #1f2937;
+      background: rgba(15, 23, 42, 0.9);
+      color: var(--text-main);
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+    }
+
+    input[type="time"]:focus,
+    input[type="number"]:focus,
+    input[type="text"]:focus {
+      border-color: rgba(56, 189, 248, 0.9);
+      box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.5);
+      background: rgba(15, 23, 42, 0.95);
+    }
+
+    input::placeholder {
+      color: #6b7280;
+    }
+
+    .help-text {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin: 2px 0 8px;
+    }
+
+    .button-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 6px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .btn {
+      border-radius: var(--radius-pill);
+      border: none;
+      padding: 8px 18px;
+      cursor: pointer;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: transform 0.08s ease-out, box-shadow 0.08s ease-out, background 0.15s;
+      user-select: none;
+      white-space: nowrap;
+    }
+
+    .btn-main {
+      background: radial-gradient(circle at top left, #22c55e, #16a34a);
+      color: #022c22;
+      box-shadow: 0 10px 25px rgba(22, 163, 74, 0.45);
+    }
+
+    .btn-main:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 14px 30px rgba(22, 163, 74, 0.55);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-muted);
+      border: 1px solid rgba(148, 163, 184, 0.5);
+    }
+
+    .btn-ghost:hover {
+      background: rgba(15, 23, 42, 0.9);
+    }
+
+    .btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .btn-icon {
+      font-size: 1rem;
+    }
+
+    /* Meeting timer display */
+
+    .timer-card {
+      position: relative;
+      z-index: 1;
+      padding: 10px 12px 14px;
+      border-radius: 16px;
+      background: radial-gradient(circle at top right, rgba(16, 185, 129, 0.2), rgba(15, 23, 42, 0.9));
+      border: 1px solid rgba(55, 65, 81, 0.9);
+      margin-bottom: 10px;
+    }
+
+    .meeting-times {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 8px;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    .meeting-times strong {
+      color: #e5e7eb;
+      font-weight: 600;
+    }
+
+    .timer-main-label {
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      color: var(--text-muted);
+      margin-bottom: 2px;
+    }
+
+    .meeting-timer-value {
+      font-feature-settings: "tnum" 1, "ss01" 1;
+      font-variant-numeric: tabular-nums;
+      font-size: 2.2rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-align: left;
+      color: #f9fafb;
+    }
+
+    .meeting-timer-value.overrun {
+      color: var(--danger);
+      text-shadow: 0 0 20px rgba(239, 68, 68, 0.6);
+    }
+
+    .timer-note {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    /* Progress bars */
+
+    .progress-track {
+      position: relative;
+      width: 100%;
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.92);
+      border: 1px solid rgba(31, 41, 55, 0.9);
+      overflow: hidden;
+      margin-top: 6px;
+    }
+
+    .progress-bar {
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 100%;
+      transform-origin: left center;
+      transform: scaleX(0);
+      background: linear-gradient(90deg, #22c55e, #0ea5e9);
+      transition: transform 0.12s linear, background 0.15s;
+    }
+
+    .progress-bar.overrun {
+      background: linear-gradient(90deg, #ef4444, #f97316);
+    }
+
+    /* Topics config */
+
+    .topics-config {
+      position: relative;
+      z-index: 1;
+      margin-top: 12px;
+      padding-top: 8px;
+      border-top: 1px dashed rgba(55, 65, 81, 0.9);
+    }
+
+    .topics-config-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 4px;
+    }
+
+    .topic-config-title {
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: #e5e7eb;
+    }
+
+    .topic-config-subtitle {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .topic-config-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 260px;
+      overflow-y: auto;
+      margin-top: 4px;
+      padding-right: 4px;
+    }
+
+    .topic-config-row {
+      display: grid;
+      grid-template-columns: minmax(0, 2.4fr) minmax(0, 1fr);
+      gap: 8px;
+      align-items: center;
+      position: relative;
+      padding-left: 18px;
+    }
+
+    .topic-config-row small {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      margin-left: 2px;
+    }
+
+    .config-drag-handle {
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      cursor: grab;
+      font-size: 0.85rem;
+      color: #4b5563;
+      user-select: none;
+    }
+
+    .config-drag-handle:active {
+      cursor: grabbing;
+    }
+
+    /* Right side topics list */
+
+    .topics-list {
+      position: relative;
+      z-index: 1;
+      margin-top: 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 430px;
+      overflow-y: auto;
+      padding-right: 4px;
+    }
+
+    .topics-empty {
+      margin-top: 12px;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    .topic-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1.8fr) auto auto;
+      gap: 10px;
+      align-items: center;
+      padding: 8px 10px;
+      border-radius: 14px;
+      border: 1px solid rgba(31, 41, 55, 0.9);
+      background: radial-gradient(circle at top left, rgba(15, 23, 42, 0.95), rgba(15, 23, 42, 0.9));
+      transition: background 0.18s, border-color 0.18s, transform 0.08s, box-shadow 0.08s;
+      cursor: grab;
+    }
+
+    .topic-row.dragging {
+      opacity: 0.8;
+      box-shadow: 0 12px 30px rgba(15, 23, 42, 0.9);
+    }
+
+    .topic-row.current-topic {
+      border-color: rgba(34, 197, 94, 0.9);
+      box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.35);
+      background: radial-gradient(circle at top left, rgba(22, 163, 74, 0.24), rgba(15, 23, 42, 0.96));
+      transform: translateY(-1px);
+    }
+
+    .topic-row.topic-finished {
+      opacity: 0.8;
+      border-style: dashed;
+      cursor: default;
+    }
+
+    .topic-main {
+      min-width: 0;
+    }
+
+    .topic-title {
+      font-size: 0.9rem;
+      font-weight: 500;
+      color: #e5e7eb;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .topic-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 2px;
+    }
+
+    .topic-planned {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    .topic-status-pill {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.09em;
+      padding: 2px 8px;
+      border-radius: var(--radius-pill);
+      background: rgba(31, 41, 55, 0.95);
+      border: 1px solid rgba(55, 65, 81, 0.9);
+      color: var(--text-muted);
+    }
+
+    .topic-row.current-topic .topic-status-pill {
+      background: rgba(22, 163, 74, 0.16);
+      border-color: rgba(22, 163, 74, 0.9);
+      color: #bbf7d0;
+    }
+
+    .topic-row.topic-finished .topic-status-pill {
+      opacity: 0.8;
+      border-style: dashed;
+    }
+
+    .topic-progress-track {
+      margin-top: 4px;
+    }
+
+    .topic-timer {
+      font-feature-settings: "tnum" 1, "ss01" 1;
+      font-variant-numeric: tabular-nums;
+      font-size: 1.25rem;
+      font-weight: 600;
+      text-align: right;
+      min-width: 70px;
+      letter-spacing: 0.09em;
+      color: #e5e7eb;
+    }
+
+    .topic-timer.overrun {
+      color: var(--danger);
+      text-shadow: 0 0 8px rgba(239, 68, 68, 0.7);
+    }
+
+    .end-topic-btn {
+      padding: 6px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.6);
+      background: rgba(15, 23, 42, 0.9);
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 0.75rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      white-space: nowrap;
+      transition: background 0.12s, border-color 0.12s, transform 0.08s, box-shadow 0.08s;
+    }
+
+    .end-topic-btn:hover:not(:disabled) {
+      background: rgba(30, 64, 175, 0.5);
+      border-color: rgba(59, 130, 246, 0.8);
+      box-shadow: 0 0 18px rgba(59, 130, 246, 0.45);
+      transform: translateY(-1px);
+    }
+
+    .end-topic-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      box-shadow: none;
+      transform: none;
+    }
+
+    .end-topic-btn .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: rgba(148, 163, 184, 0.85);
+    }
+
+    .topic-row.current-topic .end-topic-btn .dot {
+      background: #22c55e;
+    }
+
+    .topic-row.topic-finished .end-topic-btn .dot {
+      background: #9ca3af;
+    }
+
+    .footer-note {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      margin-top: 12px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .made-by {
+      position: fixed;
+      right: 18px;
+      bottom: 12px;
+      font-size: 0.72rem;
+      color: #6b7280;
+      opacity: 0.85;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <!-- LEFT: SETUP + MEETING TIMER -->
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Meeting Timekeeper</div>
+          <div class="card-subtitle">Plan your agenda and keep every topic on time.</div>
+        </div>
+        <div class="badge">Belgium time (device clock)</div>
+      </div>
+
+      <!-- Meeting timer display -->
+      <div class="timer-card">
+        <div class="meeting-times">
+          <span>Planned: <strong id="meetingPlannedText">--:-- → --:--</strong></span>
+          <span id="meetingLengthText">Total: -- min</span>
+        </div>
+        <div class="timer-main-label" id="meetingTimerLabel">Meeting time left</div>
+        <div class="meeting-timer-value" id="meetingTimer">00:00:00</div>
+        <div class="progress-track">
+          <div class="progress-bar" id="meetingProgressBar"></div>
+        </div>
+        <div class="timer-note">
+          Uses the current time of your device. For you, this should match Belgian time (CET/CEST).
+        </div>
+      </div>
+
+      <!-- Setup form -->
+      <div class="field-row">
+        <div class="field">
+          <label for="startTime">Start time</label>
+          <input type="time" id="startTime" />
+          <div class="help-text">e.g. 09:00</div>
+        </div>
+        <div class="field">
+          <label for="endTime">End time</label>
+          <input type="time" id="endTime" />
+          <div class="help-text">e.g. 11:30</div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="topicCount">Number of topics</label>
+        <input type="number" id="topicCount" min="1" max="25" value="3" />
+        <div class="help-text">You can adjust at any time before starting.</div>
+      </div>
+
+      <div class="topics-config">
+        <div class="topics-config-header">
+          <div class="topic-config-title">Agenda topics</div>
+          <div class="topic-config-subtitle">Reorder topics by dragging the handle on the left.</div>
+        </div>
+        <div id="topicsConfig" class="topic-config-grid"></div>
+      </div>
+
+      <div class="button-row">
+        <button class="btn btn-main" id="startMeetingBtn">
+          <span class="btn-icon">▶️</span>
+          <span>Start the meeting</span>
+        </button>
+        <button class="btn btn-ghost" id="resetBtn" type="button">
+          <span class="btn-icon">♻️</span>
+          <span>Reset</span>
+        </button>
+      </div>
+
+      <div class="footer-note">
+        Tip: Drag topics up &amp; down to reorder them. Click <strong>End topic</strong> when you actually move on in the meeting.
+        If you run late, the topic timer will continue in red with a bell chime when time is up.
+      </div>
+    </div>
+
+    <!-- RIGHT: TOPIC TIMERS -->
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">Live agenda</div>
+          <div class="card-subtitle">Topic countdowns, overruns, and drag-to-reorder.</div>
+        </div>
+        <div class="badge">Timers</div>
+      </div>
+
+      <div id="topicsList" class="topics-list">
+        <div class="topics-empty">
+          Configure your agenda on the left and press <strong>Start the meeting</strong>.<br />
+          Topic timers will appear here.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="made-by">Made by PAlex</div>
+
+  <script>
+    (function () {
+      const startTimeInput = document.getElementById("startTime");
+      const endTimeInput = document.getElementById("endTime");
+      const topicCountInput = document.getElementById("topicCount");
+      const topicsConfigContainer = document.getElementById("topicsConfig");
+      const startMeetingBtn = document.getElementById("startMeetingBtn");
+      const resetBtn = document.getElementById("resetBtn");
+
+      const meetingPlannedText = document.getElementById("meetingPlannedText");
+      const meetingLengthText = document.getElementById("meetingLengthText");
+      const meetingTimerLabel = document.getElementById("meetingTimerLabel");
+      const meetingTimerEl = document.getElementById("meetingTimer");
+      const meetingProgressBar = document.getElementById("meetingProgressBar");
+      const topicsListEl = document.getElementById("topicsList");
+
+      let topics = [];
+      let meetingStart = null;
+      let meetingEnd = null;
+      let meetingRunning = false;
+      let timerIntervalId = null;
+      let audioCtx = null;
+      let currentTopicId = null;
+      let topicIdCounter = 1;
+
+      let draggedConfigRow = null;
+      let draggedTopicRow = null;
+
+      // --- helpers ------------------------------------------------------------
+
+      function parseTimeToTodayDate(value) {
+        if (!value) return null;
+        const [hourStr, minuteStr] = value.split(":");
+        const h = Number(hourStr);
+        const m = Number(minuteStr);
+        if (Number.isNaN(h) || Number.isNaN(m)) return null;
+        const d = new Date();
+        d.setSeconds(0, 0);
+        d.setHours(h, m, 0, 0);
+        return d;
+      }
+
+      function formatHMS(ms) {
+        const negative = ms < 0;
+        const totalSeconds = Math.floor(Math.abs(ms) / 1000);
+        const hours = Math.floor(totalSeconds / 3600);
+        const minutes = Math.floor((totalSeconds % 3600) / 60);
+        const seconds = totalSeconds % 60;
+        const str =
+          String(hours).padStart(2, "0") +
+          ":" +
+          String(minutes).padStart(2, "0") +
+          ":" +
+          String(seconds).padStart(2, "0");
+        return negative ? "-" + str : str;
+      }
+
+      function formatMSMinutes(ms) {
+        const negative = ms < 0;
+        const totalSeconds = Math.floor(Math.abs(ms) / 1000);
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        const str =
+          String(minutes).padStart(2, "0") +
+          ":" +
+          String(seconds).padStart(2, "0");
+        return (negative ? "-" : "") + str;
+      }
+
+      function ensureAudioContext() {
+        try {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (!AudioContext) return null;
+          if (!audioCtx) {
+            audioCtx = new AudioContext();
+          }
+          if (audioCtx.state === "suspended") {
+            audioCtx.resume();
+          }
+          return audioCtx;
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function playBellDing() {
+        const ctx = ensureAudioContext();
+        if (!ctx) return;
+
+        const duration = 0.8;
+        const now = ctx.currentTime;
+
+        // Two oscillators to simulate a bell-like chime
+        const osc1 = ctx.createOscillator();
+        const osc2 = ctx.createOscillator();
+        const gain = ctx.createGain();
+
+        osc1.type = "sine";
+        osc2.type = "sine";
+
+        // Bell-ish partials
+        osc1.frequency.value = 880;  // A5
+        osc2.frequency.value = 1320; // a higher partial
+
+        osc1.connect(gain);
+        osc2.connect(gain);
+        gain.connect(ctx.destination);
+
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(0.4, now + 0.05);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+        osc1.start(now);
+        osc2.start(now + 0.02); // slight stagger
+        osc1.stop(now + duration + 0.05);
+        osc2.stop(now + duration + 0.05);
+      }
+
+      function getDragAfterElement(container, y, selector) {
+        const draggableElements = [...container.querySelectorAll(selector + ":not(.dragging)")];
+        let closest = { offset: Number.NEGATIVE_INFINITY, element: null };
+
+        draggableElements.forEach((child) => {
+          const box = child.getBoundingClientRect();
+          const offset = y - box.top - box.height / 2;
+          if (offset < 0 && offset > closest.offset) {
+            closest = { offset, element: child };
+          }
+        });
+
+        return closest.element;
+      }
+
+      // --- build topic config inputs -----------------------------------------
+
+      function buildTopicConfigFields() {
+        const count = Math.max(
+          1,
+          Math.min(25, Number(topicCountInput.value) || 1)
+        );
+        topicCountInput.value = count;
+        topicsConfigContainer.innerHTML = "";
+
+        for (let i = 0; i < count; i++) {
+          const row = document.createElement("div");
+          row.className = "topic-config-row";
+
+          const handle = document.createElement("div");
+          handle.className = "config-drag-handle";
+          handle.textContent = "⋮⋮";
+          handle.draggable = true;
+          row.appendChild(handle);
+
+          const nameField = document.createElement("div");
+          const nameLabel = document.createElement("label");
+          nameLabel.textContent = `Topic ${i + 1}`;
+          nameLabel.style.marginBottom = "2px";
+
+          const nameInput = document.createElement("input");
+          nameInput.type = "text";
+          nameInput.placeholder = `e.g. Budget, Roadmap, etc.`;
+          nameInput.dataset.role = "topic-name";
+
+          const small = document.createElement("small");
+          small.textContent = "Name (optional)";
+
+          nameField.appendChild(nameLabel);
+          nameField.appendChild(nameInput);
+          nameField.appendChild(small);
+
+          const durationField = document.createElement("div");
+          const durationLabel = document.createElement("label");
+          durationLabel.textContent = "Duration";
+          durationLabel.style.marginBottom = "2px";
+
+          const durationInput = document.createElement("input");
+          durationInput.type = "number";
+          durationInput.min = "1";
+          durationInput.value = "10";
+          durationInput.dataset.role = "topic-minutes";
+
+          const small2 = document.createElement("small");
+          small2.textContent = "Minutes";
+
+          durationField.appendChild(durationLabel);
+          durationField.appendChild(durationInput);
+          durationField.appendChild(small2);
+
+          row.appendChild(nameField);
+          row.appendChild(durationField);
+          topicsConfigContainer.appendChild(row);
+        }
+      }
+
+      // --- render topic list (right-hand side) -------------------------------
+
+      function renderTopicsList() {
+        topicsListEl.innerHTML = "";
+
+        if (!topics.length) {
+          const empty = document.createElement("div");
+          empty.className = "topics-empty";
+          empty.innerHTML =
+            'Configure your agenda on the left and press <strong>Start the meeting</strong>.';
+          topicsListEl.appendChild(empty);
+          return;
+        }
+
+        topics.forEach((topic) => {
+          const row = document.createElement("div");
+          row.className = "topic-row";
+          row.dataset.topicId = String(topic.id);
+          row.draggable = true;
+
+          const main = document.createElement("div");
+          main.className = "topic-main";
+
+          const title = document.createElement("div");
+          title.className = "topic-title";
+          title.textContent = topic.name || `Topic`;
+
+          const meta = document.createElement("div");
+          meta.className = "topic-meta";
+
+          const planned = document.createElement("div");
+          planned.className = "topic-planned";
+          planned.textContent = `${topic.minutes} min planned`;
+
+          const status = document.createElement("div");
+          status.className = "topic-status-pill";
+          status.textContent = "Not started";
+
+          meta.appendChild(planned);
+          meta.appendChild(status);
+
+          // Progress bar
+          const progressTrack = document.createElement("div");
+          progressTrack.className = "progress-track topic-progress-track";
+          const progressBar = document.createElement("div");
+          progressBar.className = "progress-bar";
+          progressTrack.appendChild(progressBar);
+
+          main.appendChild(title);
+          main.appendChild(meta);
+          main.appendChild(progressTrack);
+
+          const timer = document.createElement("div");
+          timer.className = "topic-timer";
+          timer.textContent = formatMSMinutes(topic.plannedMs);
+
+          const endBtn = document.createElement("button");
+          endBtn.className = "end-topic-btn";
+          endBtn.type = "button";
+          endBtn.dataset.topicId = String(topic.id);
+          endBtn.disabled = true;
+          endBtn.innerHTML =
+            '<span class="dot"></span><span>End topic</span>';
+
+          row.appendChild(main);
+          row.appendChild(timer);
+          row.appendChild(endBtn);
+          topicsListEl.appendChild(row);
+
+          topic.rowEl = row;
+          topic.timerEl = timer;
+          topic.statusEl = status;
+          topic.buttonEl = endBtn;
+          topic.progressBarEl = progressBar;
+        });
+
+        updateTopicRowClasses();
+      }
+
+      function updateTopicRowClasses() {
+        topics.forEach((topic) => {
+          const row = topic.rowEl;
+          if (!row) return;
+          const isCurrent = meetingRunning && topic.id === currentTopicId && topic.status === "running";
+
+          row.classList.toggle("current-topic", isCurrent);
+          row.classList.toggle("topic-finished", topic.status === "finished");
+
+          if (topic.statusEl) {
+            if (topic.status === "not-started") {
+              topic.statusEl.textContent = "Not started";
+            } else if (topic.status === "running") {
+              topic.statusEl.textContent = "In progress";
+            } else if (topic.status === "finished") {
+              topic.statusEl.textContent = "Done";
+            }
+          }
+        });
+      }
+
+      function updateTopicsOrderFromDOM() {
+        const rows = topicsListEl.querySelectorAll(".topic-row");
+        if (!rows.length) return;
+        const ids = Array.from(rows).map((r) => r.dataset.topicId);
+        const newTopics = [];
+        ids.forEach((id) => {
+          const existing = topics.find((t) => String(t.id) === id);
+          if (existing) newTopics.push(existing);
+        });
+        topics = newTopics;
+        updateTopicRowClasses();
+      }
+
+      // --- timers update loop -------------------------------------------------
+
+      function updateTimers() {
+        if (!meetingRunning || !meetingStart || !meetingEnd) return;
+
+        const now = new Date();
+
+        // Meeting timer
+        const totalMs = meetingEnd - meetingStart;
+        const msLeft = meetingEnd - now;
+        meetingTimerEl.textContent = formatHMS(msLeft);
+        if (msLeft >= 0) {
+          meetingTimerLabel.textContent = "Meeting time left";
+          meetingTimerEl.classList.remove("overrun");
+        } else {
+          meetingTimerLabel.textContent = "Meeting overrun";
+          meetingTimerEl.classList.add("overrun");
+        }
+
+        // Meeting progress
+        if (meetingProgressBar && totalMs > 0) {
+          let fraction = (now - meetingStart) / totalMs;
+          const clamped = Math.max(0, Math.min(1, fraction));
+          meetingProgressBar.style.transform = "scaleX(" + clamped + ")";
+          if (fraction > 1) {
+            meetingProgressBar.classList.add("overrun");
+          } else {
+            meetingProgressBar.classList.remove("overrun");
+          }
+        }
+
+        // Topics
+        topics.forEach((topic, index) => {
+          if (!topic.timerEl) return;
+
+          const bar = topic.progressBarEl;
+
+          if (topic.status === "not-started") {
+            topic.timerEl.textContent = formatMSMinutes(topic.plannedMs);
+            topic.timerEl.classList.remove("overrun");
+            if (bar) {
+              bar.style.transform = "scaleX(0)";
+              bar.classList.remove("overrun");
+            }
+            return;
+          }
+
+          if (topic.status === "finished") {
+            // For finished topics, keep whatever timer is displayed and show full bar (or capped)
+            if (bar && topic.plannedMs > 0 && topic.startTime) {
+              const elapsedMs = (topic.endTime || topic.startTime) - topic.startTime;
+              const fraction = Math.min(1, elapsedMs / topic.plannedMs);
+              bar.style.transform = "scaleX(" + Math.max(0, fraction) + ")";
+              bar.classList.toggle("overrun", elapsedMs > topic.plannedMs);
+            }
+            return;
+          }
+
+          const elapsedMs = now - topic.startTime;
+          const remainingMs = topic.plannedMs - elapsedMs;
+
+          // Progress for running topic
+          if (bar && topic.plannedMs > 0) {
+            let fraction = elapsedMs / topic.plannedMs;
+            const clamped = Math.max(0, Math.min(1, fraction));
+            bar.style.transform = "scaleX(" + clamped + ")";
+            if (fraction > 1) {
+              bar.classList.add("overrun");
+            } else {
+              bar.classList.remove("overrun");
+            }
+          }
+
+          if (remainingMs >= 0) {
+            topic.timerEl.textContent = formatMSMinutes(remainingMs);
+            topic.timerEl.classList.remove("overrun");
+          } else {
+            // Overrun: count upwards in red
+            const overrunMs = -remainingMs;
+            topic.timerEl.textContent = "+" + formatMSMinutes(overrunMs);
+            topic.timerEl.classList.add("overrun");
+
+            if (!topic.overrunNotified) {
+              topic.overrunNotified = true;
+              playBellDing();
+            }
+          }
+
+          // When this topic first hits zero, start next automatically
+          if (!topic.triggeredNext && remainingMs <= 0) {
+            topic.triggeredNext = true;
+            const currentIdx = topics.findIndex((t) => t.id === topic.id);
+            if (currentIdx !== -1) {
+              const nextIndex = currentIdx + 1;
+              if (
+                nextIndex < topics.length &&
+                topics[nextIndex].status === "not-started"
+              ) {
+                const next = topics[nextIndex];
+                next.status = "running";
+                next.startTime = now;
+                next.overrunNotified = false;
+                next.triggeredNext = false;
+                if (next.buttonEl) next.buttonEl.disabled = false;
+                currentTopicId = next.id;
+              }
+            }
+          }
+        });
+
+        updateTopicRowClasses();
+      }
+
+      // --- actions ------------------------------------------------------------
+
+      function startMeeting() {
+        // Parse times
+        const startDate = parseTimeToTodayDate(startTimeInput.value);
+        const endDate = parseTimeToTodayDate(endTimeInput.value);
+
+        if (!startDate || !endDate) {
+          alert("Please enter both a meeting start and end time.");
+          return;
+        }
+        if (endDate <= startDate) {
+          alert("End time must be after start time (same day).");
+          return;
+        }
+
+        meetingStart = startDate;
+        meetingEnd = endDate;
+
+        const totalMs = meetingEnd - meetingStart;
+        const totalMinutes = Math.round(totalMs / 60000);
+        const formatShort = (d) =>
+          String(d.getHours()).padStart(2, "0") +
+          ":" +
+          String(d.getMinutes()).padStart(2, "0");
+
+        meetingPlannedText.textContent =
+          formatShort(meetingStart) + " → " + formatShort(meetingEnd);
+        meetingLengthText.textContent = `Total: ${totalMinutes} min`;
+
+        // Collect topics from config in current DOM order
+        const newTopics = [];
+        const rows = topicsConfigContainer.querySelectorAll(".topic-config-row");
+        rows.forEach((row) => {
+          const nameInput = row.querySelector('input[data-role="topic-name"]');
+          const minutesInput = row.querySelector(
+            'input[data-role="topic-minutes"]'
+          );
+          if (!minutesInput) return;
+          const name = nameInput ? nameInput.value.trim() : "";
+          const minutes = Number(minutesInput.value);
+          if (!minutes || minutes <= 0) {
+            // We'll validate after loop; but keep track
+            newTopics.push({ invalid: true });
+            return;
+          }
+          newTopics.push({
+            id: String(topicIdCounter++),
+            name,
+            minutes,
+            plannedMs: minutes * 60 * 1000,
+            status: "not-started",
+            startTime: null,
+            endTime: null,
+            overrunNotified: false,
+            triggeredNext: false,
+            rowEl: null,
+            timerEl: null,
+            buttonEl: null,
+            statusEl: null,
+            progressBarEl: null,
+          });
+        });
+
+        // Validation: any invalid
+        if (newTopics.some((t) => t.invalid)) {
+          alert("Please give each topic a positive duration in minutes.");
+          return;
+        }
+
+        if (!newTopics.length) {
+          alert("Please configure at least one topic.");
+          return;
+        }
+
+        // Validation: sum of topic time vs meeting duration
+        const topicsTotalMs = newTopics.reduce(
+          (sum, t) => sum + t.plannedMs,
+          0
+        );
+        if (topicsTotalMs > totalMs) {
+          const topicsMin = Math.round(topicsTotalMs / 60000);
+          alert(
+            `The total topic time (${topicsMin} min) exceeds the meeting duration (${totalMinutes} min).\n\nPlease reduce some topic durations or extend the meeting.`
+          );
+          return;
+        }
+
+        topics = newTopics;
+        renderTopicsList();
+
+        // Prepare audio context with user gesture
+        ensureAudioContext();
+
+        // Start timers
+        meetingRunning = true;
+        currentTopicId = topics[0].id;
+        if (topics.length) {
+          const first = topics[0];
+          first.status = "running";
+          first.startTime = new Date();
+          if (first.buttonEl) first.buttonEl.disabled = false;
+        }
+
+        // Reset meeting progress bar
+        if (meetingProgressBar) {
+          meetingProgressBar.style.transform = "scaleX(0)";
+          meetingProgressBar.classList.remove("overrun");
+        }
+
+        startMeetingBtn.disabled = true;
+        startMeetingBtn.textContent = "Meeting running…";
+
+        if (timerIntervalId) {
+          clearInterval(timerIntervalId);
+        }
+        updateTimers(); // initial
+        timerIntervalId = setInterval(updateTimers, 500);
+      }
+
+      function resetMeeting() {
+        if (timerIntervalId) {
+          clearInterval(timerIntervalId);
+          timerIntervalId = null;
+        }
+        meetingRunning = false;
+        meetingStart = null;
+        meetingEnd = null;
+        currentTopicId = null;
+        topics = [];
+        topicIdCounter = 1;
+
+        meetingPlannedText.textContent = "--:-- → --:--";
+        meetingLengthText.textContent = "Total: -- min";
+        meetingTimerLabel.textContent = "Meeting time left";
+        meetingTimerEl.textContent = "00:00:00";
+        meetingTimerEl.classList.remove("overrun");
+        if (meetingProgressBar) {
+          meetingProgressBar.style.transform = "scaleX(0)";
+          meetingProgressBar.classList.remove("overrun");
+        }
+
+        startMeetingBtn.disabled = false;
+        startMeetingBtn.textContent = "Start the meeting";
+        renderTopicsList();
+      }
+
+      function handleEndTopicClick(topicId) {
+        const topic = topics.find((t) => String(t.id) === String(topicId));
+        if (!topic) return;
+        if (topic.status !== "running") return;
+        topic.status = "finished";
+        topic.endTime = new Date();
+        if (topic.buttonEl) topic.buttonEl.disabled = true;
+        updateTopicRowClasses();
+      }
+
+      // --- events: config drag & drop ----------------------------------------
+
+      topicsConfigContainer.addEventListener("dragstart", (e) => {
+        const handle = e.target.closest(".config-drag-handle");
+        if (!handle) return;
+        const row = handle.closest(".topic-config-row");
+        if (!row) return;
+        draggedConfigRow = row;
+        e.dataTransfer.effectAllowed = "move";
+      });
+
+      topicsConfigContainer.addEventListener("dragover", (e) => {
+        if (!draggedConfigRow) return;
+        e.preventDefault();
+        const after = getDragAfterElement(
+          topicsConfigContainer,
+          e.clientY,
+          ".topic-config-row"
+        );
+        if (after == null) {
+          topicsConfigContainer.appendChild(draggedConfigRow);
+        } else {
+          topicsConfigContainer.insertBefore(draggedConfigRow, after);
+        }
+      });
+
+      topicsConfigContainer.addEventListener("drop", (e) => {
+        if (!draggedConfigRow) return;
+        e.preventDefault();
+        draggedConfigRow = null;
+      });
+
+      topicsConfigContainer.addEventListener("dragend", () => {
+        draggedConfigRow = null;
+      });
+
+      // --- events: topics list drag & drop -----------------------------------
+
+      topicsListEl.addEventListener("dragstart", (e) => {
+        const row = e.target.closest(".topic-row");
+        if (!row) return;
+        draggedTopicRow = row;
+        row.classList.add("dragging");
+        e.dataTransfer.effectAllowed = "move";
+      });
+
+      topicsListEl.addEventListener("dragover", (e) => {
+        if (!draggedTopicRow) return;
+        e.preventDefault();
+        const after = getDragAfterElement(
+          topicsListEl,
+          e.clientY,
+          ".topic-row"
+        );
+        if (after == null) {
+          topicsListEl.appendChild(draggedTopicRow);
+        } else {
+          topicsListEl.insertBefore(draggedTopicRow, after);
+        }
+      });
+
+      topicsListEl.addEventListener("drop", (e) => {
+        if (!draggedTopicRow) return;
+        e.preventDefault();
+        draggedTopicRow.classList.remove("dragging");
+        draggedTopicRow = null;
+        updateTopicsOrderFromDOM();
+      });
+
+      topicsListEl.addEventListener("dragend", () => {
+        if (!draggedTopicRow) return;
+        draggedTopicRow.classList.remove("dragging");
+        draggedTopicRow = null;
+        updateTopicsOrderFromDOM();
+      });
+
+      // --- other events -------------------------------------------------------
+
+      topicCountInput.addEventListener("change", buildTopicConfigFields);
+      startMeetingBtn.addEventListener("click", startMeeting);
+      resetBtn.addEventListener("click", resetMeeting);
+
+      topicsListEl.addEventListener("click", (event) => {
+        const btn = event.target.closest("button.end-topic-btn");
+        if (!btn) return;
+        const topicId = btn.dataset.topicId;
+        handleEndTopicClick(topicId);
+      });
+
+      // Initialise defaults
+      document.addEventListener("DOMContentLoaded", () => {
+        // Pre-fill times with a simple 60-minute meeting
+        const now = new Date();
+        const pad = (n) => String(n).padStart(2, "0");
+        const startH = now.getHours();
+        const startM = now.getMinutes();
+        const end = new Date(now.getTime() + 60 * 60000);
+        const endH = end.getHours();
+        const endM = end.getMinutes();
+        startTimeInput.value = pad(startH) + ":" + pad(startM);
+        endTimeInput.value = pad(endH) + ":" + pad(endM);
+
+        buildTopicConfigFields();
+        renderTopicsList();
+      });
+
+      // If DOMContentLoaded already fired (because script is at bottom), run manually:
+      if (document.readyState === "interactive" || document.readyState === "complete") {
+        const evt = new Event("DOMContentLoaded");
+        document.dispatchEvent(evt);
+      }
+    })();
+  </script>
+</body>
+</html>
