@@ -371,6 +371,44 @@
       cursor: grabbing;
     }
 
+    /* Time mismatch warning */
+
+    .time-warning {
+      margin-top: 10px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: rgba(127, 29, 29, 0.2);
+      border: 1px solid rgba(248, 113, 113, 0.7);
+      font-size: 0.8rem;
+      color: #fecaca;
+    }
+
+    .time-warning strong {
+      color: #fca5a5;
+    }
+
+    .time-warning-actions {
+      margin-top: 6px;
+    }
+
+    .time-warning-btn {
+      padding: 4px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(248, 250, 252, 0.5);
+      background: rgba(127, 29, 29, 0.85);
+      color: #fee2e2;
+      cursor: pointer;
+      font-size: 0.75rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .time-warning-btn:hover {
+      background: rgba(220, 38, 38, 0.9);
+      border-color: rgba(254, 242, 242, 0.9);
+    }
+
     /* Right side topics list */
 
     .topics-list {
@@ -621,6 +659,17 @@
         </button>
       </div>
 
+      <div id="timeWarning" class="time-warning" style="display: none;">
+        <div id="timeWarningText">
+          The total topic time exceeds the planned meeting duration.
+        </div>
+        <div class="time-warning-actions">
+          <button type="button" id="continueAnywayBtn" class="time-warning-btn">
+            <span>⚠️ Continue anyway</span>
+          </button>
+        </div>
+      </div>
+
       <div class="footer-note">
         Tip: Drag topics up &amp; down to reorder them. Click <strong>End topic</strong> when you actually move on in the meeting.
         If you run late, the topic timer will continue in red with a bell chime when time is up.
@@ -665,6 +714,10 @@
       const currentTimeDisplay = document.getElementById("currentTimeDisplay");
       const topicsListEl = document.getElementById("topicsList");
 
+      const timeWarningEl = document.getElementById("timeWarning");
+      const timeWarningTextEl = document.getElementById("timeWarningText");
+      const continueAnywayBtn = document.getElementById("continueAnywayBtn");
+
       let topics = [];
       let meetingStart = null;
       let meetingEnd = null;
@@ -676,6 +729,7 @@
 
       let draggedConfigRow = null;
       let draggedTopicRow = null;
+      let ignoreTimeMismatchOnce = false;
 
       // --- helpers ------------------------------------------------------------
 
@@ -748,7 +802,6 @@
         const duration = 0.8;
         const now = ctx.currentTime;
 
-        // Two oscillators to simulate a bell-like chime
         const osc1 = ctx.createOscillator();
         const osc2 = ctx.createOscillator();
         const gain = ctx.createGain();
@@ -756,9 +809,8 @@
         osc1.type = "sine";
         osc2.type = "sine";
 
-        // Bell-ish partials
-        osc1.frequency.value = 880;  // A5
-        osc2.frequency.value = 1320; // higher partial
+        osc1.frequency.value = 880;
+        osc2.frequency.value = 1320;
 
         osc1.connect(gain);
         osc2.connect(gain);
@@ -769,7 +821,7 @@
         gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
 
         osc1.start(now);
-        osc2.start(now + 0.02); // slight stagger
+        osc2.start(now + 0.02);
         osc1.stop(now + duration + 0.05);
         osc2.stop(now + duration + 0.05);
       }
@@ -891,7 +943,6 @@
           meta.appendChild(planned);
           meta.appendChild(status);
 
-          // Progress bar
           const progressTrack = document.createElement("div");
           progressTrack.className = "progress-track topic-progress-track";
           const progressBar = document.createElement("div");
@@ -968,14 +1019,12 @@
       function updateTimers() {
         const now = new Date();
 
-        // Update current time display
         if (currentTimeDisplay) {
           currentTimeDisplay.textContent = "Now: " + formatTimeOfDay(now);
         }
 
         if (!meetingRunning || !meetingStart || !meetingEnd) return;
 
-        // Meeting timer
         const totalMs = meetingEnd - meetingStart;
         const msLeft = meetingEnd - now;
         meetingTimerEl.textContent = formatHMS(msLeft);
@@ -987,7 +1036,6 @@
           meetingTimerEl.classList.add("overrun");
         }
 
-        // Meeting progress
         if (meetingProgressBar && totalMs > 0) {
           let fraction = (now - meetingStart) / totalMs;
           const clamped = Math.max(0, Math.min(1, fraction));
@@ -999,7 +1047,6 @@
           }
         }
 
-        // Topics
         topics.forEach((topic) => {
           if (!topic.timerEl) return;
 
@@ -1016,7 +1063,6 @@
           }
 
           if (topic.status === "finished") {
-            // For finished topics, keep displayed time and show capped bar
             if (bar && topic.plannedMs > 0 && topic.startTime) {
               const endRef = topic.endTime || topic.startTime;
               const elapsedMs = endRef - topic.startTime;
@@ -1030,7 +1076,6 @@
           const elapsedMs = now - topic.startTime;
           const remainingMs = topic.plannedMs - elapsedMs;
 
-          // Progress for running topic
           if (bar && topic.plannedMs > 0) {
             let fraction = elapsedMs / topic.plannedMs;
             const clamped = Math.max(0, Math.min(1, fraction));
@@ -1046,7 +1091,6 @@
             topic.timerEl.textContent = formatMSMinutes(remainingMs);
             topic.timerEl.classList.remove("overrun");
           } else {
-            // Overrun: count upwards in red
             const overrunMs = -remainingMs;
             topic.timerEl.textContent = "+" + formatMSMinutes(overrunMs);
             topic.timerEl.classList.add("overrun");
@@ -1057,7 +1101,6 @@
             }
           }
 
-          // When this topic first hits zero, start next automatically
           if (!topic.triggeredNext && remainingMs <= 0) {
             topic.triggeredNext = true;
             const currentIdx = topics.findIndex((t) => t.id === topic.id);
@@ -1084,8 +1127,7 @@
 
       // --- actions ------------------------------------------------------------
 
-      function startMeeting() {
-        // Parse times
+      function attemptStartMeeting() {
         const startDate = parseTimeToTodayDate(startTimeInput.value);
         const endDate = parseTimeToTodayDate(endTimeInput.value);
 
@@ -1098,22 +1140,11 @@
           return;
         }
 
-        // Planned window
-        meetingStart = startDate;
-        meetingEnd = endDate;
-
-        const totalMs = meetingEnd - meetingStart;
+        const meetingStartLocal = startDate;
+        const meetingEndLocal = endDate;
+        const totalMs = meetingEndLocal - meetingStartLocal;
         const totalMinutes = Math.round(totalMs / 60000);
-        const formatShort = (d) =>
-          String(d.getHours()).padStart(2, "0") +
-          ":" +
-          String(d.getMinutes()).padStart(2, "0");
 
-        meetingPlannedText.textContent =
-          formatShort(meetingStart) + " → " + formatShort(meetingEnd);
-        meetingLengthText.textContent = `Total: ${totalMinutes} min`;
-
-        // Collect topics from config in current DOM order
         const newTopics = [];
         const rows = topicsConfigContainer.querySelectorAll(".topic-config-row");
         rows.forEach((row) => {
@@ -1146,7 +1177,6 @@
           });
         });
 
-        // Validation: any invalid
         if (newTopics.some((t) => t.invalid)) {
           alert("Please give each topic a positive duration in minutes.");
           return;
@@ -1157,31 +1187,47 @@
           return;
         }
 
-        // Validation: sum of topic time vs meeting duration
         const topicsTotalMs = newTopics.reduce(
           (sum, t) => sum + t.plannedMs,
           0
         );
-        if (topicsTotalMs > totalMs) {
-          const topicsMin = Math.round(topicsTotalMs / 60000);
-          alert(
-            `The total topic time (${topicsMin} min) exceeds the meeting duration (${totalMinutes} min).\n\nPlease reduce some topic durations or extend the meeting.`
-          );
+        const topicsMin = Math.round(topicsTotalMs / 60000);
+
+        if (topicsTotalMs > totalMs && !ignoreTimeMismatchOnce) {
+          if (timeWarningTextEl) {
+            timeWarningTextEl.textContent =
+              `The total topic time (${topicsMin} min) exceeds the meeting duration (${totalMinutes} min). ` +
+              `You can adjust the times or continue anyway.`;
+          }
+          if (timeWarningEl) {
+            timeWarningEl.style.display = "block";
+          }
           return;
         }
+
+        ignoreTimeMismatchOnce = false;
+        if (timeWarningEl) {
+          timeWarningEl.style.display = "none";
+        }
+
+        meetingStart = meetingStartLocal;
+        meetingEnd = meetingEndLocal;
+
+        const formatShort = (d) =>
+          String(d.getHours()).padStart(2, "0") +
+          ":" +
+          String(d.getMinutes()).padStart(2, "0");
+
+        meetingPlannedText.textContent =
+          formatShort(meetingStart) + " → " + formatShort(meetingEnd);
+        meetingLengthText.textContent = `Total: ${totalMinutes} min`;
 
         topics = newTopics;
         renderTopicsList();
 
-        // Prepare audio context with user gesture
         ensureAudioContext();
 
-        // Start timers
         meetingRunning = true;
-
-        // The meeting timer already compares planned start & end to the ACTUAL current time.
-        // If the meeting is already ongoing (current time > start time), the remaining time
-        // will automatically be less than the planned duration.
 
         if (topics.length) {
           const first = topics[0];
@@ -1191,7 +1237,6 @@
           if (first.buttonEl) first.buttonEl.disabled = false;
         }
 
-        // Reset meeting progress bar
         if (meetingProgressBar) {
           meetingProgressBar.style.transform = "scaleX(0)";
           meetingProgressBar.classList.remove("overrun");
@@ -1203,8 +1248,18 @@
         if (timerIntervalId) {
           clearInterval(timerIntervalId);
         }
-        updateTimers(); // initial
+        updateTimers();
         timerIntervalId = setInterval(updateTimers, 500);
+      }
+
+      function handleStartClick() {
+        ignoreTimeMismatchOnce = false;
+        attemptStartMeeting();
+      }
+
+      function handleContinueAnywayClick() {
+        ignoreTimeMismatchOnce = true;
+        attemptStartMeeting();
       }
 
       function resetMeeting() {
@@ -1218,6 +1273,7 @@
         currentTopicId = null;
         topics = [];
         topicIdCounter = 1;
+        ignoreTimeMismatchOnce = false;
 
         meetingPlannedText.textContent = "--:-- → --:--";
         meetingLengthText.textContent = "Total: -- min";
@@ -1233,6 +1289,10 @@
           currentTimeDisplay.textContent = "Now: --:--:--";
         }
 
+        if (timeWarningEl) {
+          timeWarningEl.style.display = "none";
+        }
+
         startMeetingBtn.disabled = false;
         startMeetingBtn.textContent = "Start the meeting";
         renderTopicsList();
@@ -1244,23 +1304,25 @@
         const topic = topics[idx];
         if (topic.status !== "running") return;
 
-        // Mark this topic finished
+        const wasAlreadyTriggeredNext = !!topic.triggeredNext;
+
         topic.status = "finished";
         topic.endTime = new Date();
         if (topic.buttonEl) topic.buttonEl.disabled = true;
 
-        // Immediately start the next not-started topic, if any
-        const now = new Date();
-        for (let i = idx + 1; i < topics.length; i++) {
-          const next = topics[i];
-          if (next.status === "not-started") {
-            next.status = "running";
-            next.startTime = now;
-            next.overrunNotified = false;
-            next.triggeredNext = false;
-            if (next.buttonEl) next.buttonEl.disabled = false;
-            currentTopicId = next.id;
-            break;
+        if (!wasAlreadyTriggeredNext) {
+          const now = new Date();
+          for (let i = idx + 1; i < topics.length; i++) {
+            const next = topics[i];
+            if (next.status === "not-started") {
+              next.status = "running";
+              next.startTime = now;
+              next.overrunNotified = false;
+              next.triggeredNext = false;
+              if (next.buttonEl) next.buttonEl.disabled = false;
+              currentTopicId = next.id;
+              break;
+            }
           }
         }
 
@@ -1346,7 +1408,8 @@
       // --- other events -------------------------------------------------------
 
       topicCountInput.addEventListener("change", buildTopicConfigFields);
-      startMeetingBtn.addEventListener("click", startMeeting);
+      startMeetingBtn.addEventListener("click", handleStartClick);
+      continueAnywayBtn.addEventListener("click", handleContinueAnywayClick);
       resetBtn.addEventListener("click", resetMeeting);
 
       topicsListEl.addEventListener("click", (event) => {
@@ -1356,9 +1419,7 @@
         handleEndTopicClick(topicId);
       });
 
-      // Initialise defaults
       document.addEventListener("DOMContentLoaded", () => {
-        // Pre-fill times with a simple 60-minute meeting
         const now = new Date();
         const pad = (n) => String(n).padStart(2, "0");
         const startH = now.getHours();
@@ -1377,7 +1438,6 @@
         renderTopicsList();
       });
 
-      // If DOMContentLoaded already fired (because script is at bottom), run manually:
       if (document.readyState === "interactive" || document.readyState === "complete") {
         const evt = new Event("DOMContentLoaded");
         document.dispatchEvent(evt);
