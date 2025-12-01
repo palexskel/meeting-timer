@@ -118,7 +118,7 @@
     .field-row {
       display: flex;
       gap: 12px;
-      margin-bottom: 10px;
+      margin-bottom: 4px;
       position: relative;
       z-index: 1;
     }
@@ -156,6 +156,12 @@
       font-size: 0.75rem;
       color: var(--text-muted);
       margin: 2px 0 8px;
+    }
+
+    .meeting-duration-preview {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-bottom: 10px;
     }
 
     .button-row {
@@ -199,6 +205,17 @@
 
     .btn-ghost:hover {
       background: rgba(15, 23, 42, 0.9);
+    }
+
+    .btn-link {
+      background: transparent;
+      border: none;
+      padding: 0;
+      margin-top: 6px;
+      font-size: 0.78rem;
+      color: #93c5fd;
+      cursor: pointer;
+      text-decoration: underline;
     }
 
     .btn:disabled {
@@ -580,6 +597,21 @@
       z-index: 1;
     }
 
+    .about-panel {
+      margin-top: 8px;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      background: rgba(15, 23, 42, 0.85);
+      border-radius: 10px;
+      padding: 8px 10px;
+      border: 1px solid rgba(31, 41, 55, 0.9);
+      display: none;
+    }
+
+    .about-panel p {
+      margin: 4px 0;
+    }
+
     .made-by {
       position: fixed;
       right: 18px;
@@ -634,6 +666,10 @@
         </div>
       </div>
 
+      <div id="meetingDurationPreview" class="meeting-duration-preview">
+        Planned duration: --
+      </div>
+
       <div class="field">
         <label for="topicCount">Number of topics</label>
         <input type="number" id="topicCount" min="1" max="25" value="3" />
@@ -674,6 +710,28 @@
         Tip: Drag topics up &amp; down to reorder them. Click <strong>End topic</strong> when you actually move on in the meeting.
         If you run late, the topic timer will continue in red with a bell chime when time is up.
       </div>
+
+      <button type="button" id="aboutToggleBtn" class="btn-link">
+        More about this tool
+      </button>
+
+      <div id="aboutPanel" class="about-panel">
+        <p><strong>About this meeting timekeeper</strong></p>
+        <p>
+          This tool helps you run structured, time-boxed meetings. You set the meeting start and end time,
+          define how many topics you want to cover, and give each topic a name and duration.
+        </p>
+        <p>
+          Once you start the meeting, you see a main meeting timer, a progress bar for the full meeting,
+          individual topic timers (including overtime in red with a bell sound), automatic starting of the next topic,
+          drag-and-drop reordering, and a small display of the current time.
+        </p>
+        <p>
+          Everything runs entirely in your browser. There is no login and no server: all data (times, topic names,
+          durations, and order) lives only in this session and disappears when you close or refresh the page.
+          Nothing is stored or sent anywhere else, so your meeting information stays on your device and remains private.
+        </p>
+      </div>
     </div>
 
     <!-- RIGHT: TOPIC TIMERS -->
@@ -712,11 +770,15 @@
       const meetingTimerEl = document.getElementById("meetingTimer");
       const meetingProgressBar = document.getElementById("meetingProgressBar");
       const currentTimeDisplay = document.getElementById("currentTimeDisplay");
+      const meetingDurationPreview = document.getElementById("meetingDurationPreview");
       const topicsListEl = document.getElementById("topicsList");
 
       const timeWarningEl = document.getElementById("timeWarning");
       const timeWarningTextEl = document.getElementById("timeWarningText");
       const continueAnywayBtn = document.getElementById("continueAnywayBtn");
+
+      const aboutToggleBtn = document.getElementById("aboutToggleBtn");
+      const aboutPanel = document.getElementById("aboutPanel");
 
       let topics = [];
       let meetingStart = null;
@@ -777,6 +839,19 @@
         const m = String(d.getMinutes()).padStart(2, "0");
         const s = String(d.getSeconds()).padStart(2, "0");
         return `${h}:${m}:${s}`;
+      }
+
+      function updatePlannedMeetingDuration() {
+        if (!meetingDurationPreview) return;
+        const startDate = parseTimeToTodayDate(startTimeInput.value);
+        const endDate = parseTimeToTodayDate(endTimeInput.value);
+        if (!startDate || !endDate || endDate <= startDate) {
+          meetingDurationPreview.textContent = "Planned duration: --";
+          return;
+        }
+        const totalMs = endDate - startDate;
+        const totalMinutes = Math.round(totalMs / 60000);
+        meetingDurationPreview.textContent = `Planned duration: ${totalMinutes} min`;
       }
 
       function ensureAudioContext() {
@@ -1293,6 +1368,10 @@
           timeWarningEl.style.display = "none";
         }
 
+        if (aboutPanel) {
+          aboutPanel.style.display = "none";
+        }
+
         startMeetingBtn.disabled = false;
         startMeetingBtn.textContent = "Start the meeting";
         renderTopicsList();
@@ -1419,6 +1498,16 @@
         handleEndTopicClick(topicId);
       });
 
+      startTimeInput.addEventListener("input", updatePlannedMeetingDuration);
+      endTimeInput.addEventListener("input", updatePlannedMeetingDuration);
+
+      if (aboutToggleBtn && aboutPanel) {
+        aboutToggleBtn.addEventListener("click", () => {
+          const isVisible = aboutPanel.style.display === "block";
+          aboutPanel.style.display = isVisible ? "none" : "block";
+        });
+      }
+
       document.addEventListener("DOMContentLoaded", () => {
         const now = new Date();
         const pad = (n) => String(n).padStart(2, "0");
@@ -1434,6 +1523,7 @@
           currentTimeDisplay.textContent = "Now: " + formatTimeOfDay(now);
         }
 
+        updatePlannedMeetingDuration();
         buildTopicConfigFields();
         renderTopicsList();
       });
